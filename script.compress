@@ -1,0 +1,9 @@
+#!/bin/bash
+root=$PWD
+for output in "output"; do
+cd ${root}/${output}
+for mode in 7 8 9 10 11 12; do
+#tar cvfj ${mode}.tar.bzip2 ${mode}
+tar xvfj ${mode}.tar.bzip2
+done
+done

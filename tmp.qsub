@@ -1,0 +1,13 @@
+
+#!/bin/bash
+#PBS -l nodes=1:ppn=8
+# job name (default = name of script file)
+#PBS -N disp_2.0
+#PBS -o ./PBS/disp_2.0.o
+#PBS -e ./PBS/disp_2.0.e
+
+CHARMMEXEC=/home/lpscott/dgomes/software64/c36b1/exec/em64t_M/charmm
+cd /home/lpscott/dgomes/GAMINI_final/
+
+mpirun -n 8 $CHARMMEXEC -i optimize.NM.displacement.inp modnu=12 disp=2.0 -o ./output/12/2.0.log
+

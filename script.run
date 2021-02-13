@@ -1,0 +1,69 @@
+#!/bin/bash
+
+rm ener_min.dat
+rm ener_dyn.dat
+rm mmfp2_min.dat
+rm mmfp2_dyn.dat
+
+run() {
+echo $disp>disp.dat
+./combine.NM.and.opt.by.dynamics.bash $1 > ./input/$1.inp
+mpirun -n 8 /home/lpscott/dgomes/software64/c36b1/exec/em64t_M/charmm -i ./input/$1.inp > ./output/$1.log
+}
+
+ener_min() {
+ener=`awk '/TOTAL_E=/ {print $2}' ./output/${num}-final.out| tail -1`
+echo $disp $ener >>ener_min.dat
+}
+
+ener_dyn() {
+ener=`awk '/AVER>/ {print $6}' ./output/${num}.log| tail -1`
+fluc=`awk '/FLUC>/ {print $6}' ./output/${num}.log| tail -1`
+echo $disp $ener $fluc >>ener_dyn.dat
+}
+
+mmfp2_min() {
+mmfp2=`awk '/CONJ MMFP2>/ {print $3}' ./output/${num}.log | tail -1`
+echo $disp $mmfp2 >> mmfp2_mini.dat
+}
+
+mmfp2_dyn() {
+mmfp2=`awk '/AVER MMFP2>/ {print $3}' ./output/${num}.log | tail -1`
+mmfp2_fluc=`awk '/FLUC MMFP2>/ {print $3}' ./output/${num}.log |tail -1`
+echo $disp $mmfp2 $mmfp2_fluc >> mmfp2_dyn.dat
+}
+
+num=-20
+for disp in -2.0 -1.9 -1.8 -1.7 -1.6 -1.5 -1.4 -1.3 -1.2 -1.1 ; do
+run $num
+let num=$num+1
+done
+
+num=-10
+for disp in -1.0 -0.9 -0.8 -0.7 -0.6 -0.5 -0.4 -0.3 -0.2 -0.1 ; do
+#run $num
+let num=$num+1
+done
+
+num=0
+for disp in  0.0 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0 ; do
+#run $num
+let num=$num+1
+done
+
+num=11
+for disp in  1.1  1.2  1.3  1.4  1.5  1.6  1.7  1.8  1.9  2.0 ; do
+#run $num
+let num=$num+1
+done
+
+num=-20
+for disp in -2.0 -1.9 -1.8 -1.7 -1.6 -1.5 -1.4 -1.3 -1.2 -1.1 -1.0 -0.9 -0.8 -0.7 -0.6 -0.5 -0.4 -0.3 -0.2 -0.1 0.0 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0 1.1  1.2  1.3  1.4  1.5  1.6  1.7  1.8  1.9  2.0 ; do
+#echo "running disp: " ${num}
+#ener_min
+#ener_dyn
+#mmfp2_min
+#mmfp2_dyn
+let num=$num+1
+done 
+

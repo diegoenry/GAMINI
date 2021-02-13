@@ -1,0 +1,5 @@
+*
+set a oi
+envi var @a
+system "echo $VAR|tr [A-Z] [a-z]"
+stop

@@ -1,0 +1,262 @@
+dynamics (1D) low temperature
+
+! faster routines are used
+faster on
+
+! set which mode number you consider
+set modnu 1
+
+! stepping along the mode
+! rms from the initial structure (in Angstrom)
+set dstep 0.2
+set temperature 30
+
+!directory name where the coordinates and trajectory will be written
+set dirnam mini-along-@modnu
+
+!normal mode file name
+set modnam  ./in_ap_holo_vector_1.mod
+
+open read card unit 10 name ../parm99bs0_all-modified.rtf
+read rtf card unit 10
+close unit 10
+
+open read card unit 12 name ../parm99bs0_all-modified.prm
+read param card unit 12
+close unit 12
+
+open read card unit 12 name ../in_apo_wt-0ns.psf
+read psf card unit 12
+close unit 12
+
+! read the initial coordinates (energy minimized one)
+! for which the modes were computed
+!
+open read card unit 12 name ../in_apo_wt-0ns-relax.crd
+read coor card unit 12
+close unit 12
+
+!Define energy model
+! Define energy model
+! Parameters from Paulo Ricardo Batista
+! define force field 2
+set par1 8.0
+set par2 10.0
+set par3 12.0
+set par4 2.0
+
+updat  inbfrq -1 -
+atom rdiel switch vswitch -
+ctonnb @par1 ctofnb @par2 cutnb @par3 eps @par4 e14fac 1.0 wmin 1.5
+
+!set mrmsi1  -2.0 !dgomes This will come from the command line.
+!set mrmsl1   2.0 !dgomes This is NOT used in the script
+
+
+!==========
+
+set neg -1
+set ifile 0
+
+!== initial values ==============================
+!mode numbers for displacements
+set imode1 @modnu
+!stepping value along the modes
+set dmrms1   @dstep
+if mrmsi1   .gt. @mrmsl1    calc dmrms1   = @neg * @dstep
+calc eps1    = @dmrms1   / 10.
+set mrms1    @mrmsi1
+calc mrmsleps1   = @mrmsl1   + @eps1
+calc mrmsieps1   = @mrmsi1   - @eps1
+if dmrms1   .lt. 0 calc mrmsleps1   = @neg * @mrmsleps1
+if dmrms1   .lt. 0 calc mrmsieps1   = @neg * @mrmsieps1
+set fin1   0
+
+open read file unit 40 name @modnam
+set kmod 1000
+mmfp
+     vmod init mxmd 1 krot 0.000001 kcgr 1000 umdn 40 uout 17 nsvq 1 -
+     sele   type CA  end
+vmod add  qn 0.1  imdn @imode1 kmdn @kmod
+end
+
+label recommence
+
+!open a trajectory file for the normal mode coordinates
+open write card unit 17 name @dirnam/in_apo_wt-0ns-@modnu_@mrms1.qcr
+
+!==change or update the parameters =============
+set scale1      1
+if mrms1   .lt. 0 set scale1   -1
+set q1   @mrms1
+set mrmsabs1   @mrms1
+if mrms1   .lt. 0 calc  mrmsabs1   = @neg * @mrms1
+
+open read card unit 12 name ../in_apo_wt-0ns-relax.crd
+read coor card unit 12
+close unit 12
+coor copy comp
+!------------
+!minimisation
+!------------
+
+! Set up MMFP (umbrella) potential
+! mxmd = maximum number of modes (read only once)
+! kmdn = force constant for all the modes
+! qn  =constrained coordinate value for mode imdn
+! umdn = unit number for the modes
+! imdn = mode number
+! uout = unit for storing the normal coordinates
+! krot = force constant for the overall rotation
+! kcgr=force constant for the overall translation
+! nsvq = normal coordinates saving frequency
+
+! Minimization with restraint on all the atoms
+!mmfp
+!vmod init mxmd 1 krot 0.000001 kcgr 1000 umdn 40 uout 17 nsvq 1
+!     vmod add  qn @q1 imdn @imode1 kmdn 1000
+!end
+
+! Minimization with restraint on Calpha atoms only, but the charmm energy
+! is computed on all the atoms
+
+mmfp
+vmod change  qn @q1 imdn @imode1 kmdn @kmod
+end
+
+
+!dgomes loop to increase kmdn (KMOD)
+!mini sd nstep 100 tolgrd 0.01
+!mini conj nstep 1000 tolgrd 0.01
+!close unit 17
+
+!##### md1 just relax a little #####
+open write card unit 17 name @dirnam/in_apo_wt-0ns-@modnu_@mrms1.md1.qcr
+open write unit 19 card name @dirnam/traj/in_apo_wt-0ns-@modnu_@mrms1_@kmod.md1.rst
+open write unit 14 file name @dirnam/traj/in_apo_wt-0ns-@modnu_@mrms1_@kmod.md1.dcd
+
+dyna start nstep 5000  timestep 0.001  ntrfrq 10  -
+    iprfrq 1000  ihtfrq 0 ieqfrq 500 imgfrq -1 inbfrq -1 -
+    iunwri 19 iunrea -16  iuncrd 14 -
+    nprint 100 nsavc 1000 echeck 100000 -
+    ihbfrq 0 isvfrq 1000 -
+    iasors 0 iasvel 1 iscvel 0 ichecw 0 -
+    firstt 30.0 finalt @temperature teminc 0.0 tstruc @temperature -
+    TConstant TCouple 0.1 TReference @temperature
+
+set i 1000
+
+close unit 17
+close unit 19
+close unit 14
+
+!##### md2 increasing KMOD #####
+open write card unit 17 name @dirnam/system-@modnu_@mrms1.md2.qcr
+open read unit 16 card name @dirnam/traj/in_apo_wt-0ns-@modnu_@mrms1_@kmod.md1.rst
+open write unit 19 card name @dirnam/traj/in_apo_wt-0ns-@modnu_@mrms1_@kmod.md2.rst
+open write unit 14 file name @dirnam/traj/in_apo_wt-0ns-@modnu_@mrms1_@kmod.md2.dcd
+
+label kmdn_loop
+
+mmfp
+vmod change nrestraint 1 qn @q1 kmdn @i
+end
+
+dyna cpt restart nstep  5000  timestep 0.001  ntrfrq 10  -
+    iprfrq 1000  ihtfrq 0 ieqfrq 500 imgfrq -1 inbfrq -1 -
+    iunwri 19 iunrea 16  iuncrd 14 -
+    nprint 100 nsavc 1000 echeck 100000 -
+    ihbfrq 0 isvfrq 1000 -
+    iasors 0 iasvel 0 iscvel 0 ichecw 0 -
+    firstt @temperature finalt @temperature teminc 0.0 tstruc @temperature -
+    TConstant TCouple 0.1 TReference @temperature
+
+increment i by 1000
+
+if i .lt. 10000 goto kmdn_loop
+
+close unit 17
+close unit 19
+close unit 16
+close unit 14
+
+!##### md3 production #####
+!# Here we increase (put 20000) the KMOD back to the original value and run the simulation
+set i @kmod
+mmfp
+vmod change nrestraint 1 qn @q1 kmdn @i
+end
+
+open write card unit 17 name @dirnam/system-@modnu_@mrms1.md3.qcr
+open write unit 16 card name @dirnam/traj/in_apo_wt-0ns-@modnu_@mrms1_@kmod.md2.rst
+open write unit 19 card name @dirnam/traj/in_apo_wt-0ns-@modnu_@mrms1_@kmod.md3.rst
+open write unit 14 file name @dirnam/traj/in_apo_wt-0ns-@modnu_@mrms1_@kmod.md3.dcd
+
+!sample
+dyna cpt restart nstep  5000  timestep 0.001  ntrfrq 10  -
+    iprfrq 1000  ihtfrq 0 ieqfrq 500 imgfrq -1 inbfrq -1 -
+    iunwri 19 iunrea 16  iuncrd 14 -
+    nprint 100 nsavc 1000 echeck 100000 -
+    ihbfrq 0 isvfrq 1000 -
+    iasors 0 iasvel 0 iscvel 0 ichecw 0 -
+    firstt @temperature finalt @temperature teminc 0.0 tstruc @temperature -
+    TConstant TCouple 0.1 TReference @temperature
+
+close unit 14
+close unit 16
+
+! to exit kmdn_loop
+label converged
+
+open write card unit 22 name @dirnam/in_apo_wt-0ns-@modnu_@mrms1-final.out
+
+outu 22
+
+ener
+
+! compute the rmsd from the initial structure
+coor rms
+
+write title unit 22
+* system (protein only)
+* NORMAL_MODES= @modnu
+* TARGET_NORMAL_COORDINATES= @mrms1
+* TOTAL_E= ?ENER RMSD= ?RMS
+*
+mmfp
+vmod print
+end
+
+outu 6
+
+! write the final minimized coordinates
+open write card unit 12 name @dirnam/in_apo_wt-0ns-@modnu_@mrms1.pdb
+write coor pdb unit 12
+* system
+* iminimized coordinates
+* NORMAL_MODES= @modnu
+* TARGET_NORMAL_COORDINATES= @mrms1
+* TOTAL_E= ?ENER RMSD= ?RMS
+*
+time diff
+! close the normal mode file
+!close unit 40
+
+
+!increment the rms values
+calc mrms1   = @mrms1   + @dmrms1
+set m1   @mrms1
+if dmrms1   .lt. 0. calc m1    = @neg * @mrms1
+if m1   .gt. @mrmsleps1    set fin1   1
+if fin1   .eq. 0 close unit 17
+if fin1   .eq. 0 close unit 19
+!if fin1   .eq. 0 mmfp
+!if fin1   .eq. 0 vmod reset
+!if fin1   .eq. 0 end
+if fin1   .eq. 0 goto recommence
+set fin1   0
+set mrms1   @mrmsi1
+set m1   @mrms1
+
+outu 6
+stop

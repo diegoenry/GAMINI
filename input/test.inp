@@ -1,0 +1,179 @@
+* energy minimization for a given combination of modes 
+* For a given number of modes do a displacement along a combination of them.
+* The amplitude along each of the modes is chosen randomly
+*
+
+bomlev -2
+
+! faster routines are used
+faster on
+
+!==========
+!directory name where the coordinates and trajectory will be written
+set dirnam output
+set istr 
+!normal mode file name
+set modnam modes.mod
+
+open read file unit 40 name @modnam
+
+! initial structure
+set minic step1_pdbreader.pdb
+
+ !Read topology and parameter files
+!Read topology and parameter files
+! protein topology and parameter
+open read card unit 10 name toppar/top_all22_prot.rtf
+read  rtf card unit 10
+
+open read card unit 20 name toppar/par_all22_prot.prm
+read para card unit 20 flex
+
+! nucleic acids
+!open read card unit 10 name toppar/top_all27_na.rtf
+!read  rtf card unit 10 append
+
+!open read card unit 20 name toppar/par_all27_na.prm
+!read para card unit 20 append flex
+
+!read the psf
+open unit 4 read card name step1_pdbreader.psf
+read psf card unit 4
+close unit 4
+
+! read the initial coordinates (energy minimized or X-ray one)
+! for which the modes were computed
+!
+open read card unit 12 name @minic
+read coor pdb resi unit 12
+close unit 12
+
+! Define energy model
+! Parameters from Paulo Ricardo Batista 
+! define force field 2
+set par1 8.0
+set par2 10.0
+set par3 12.0
+set par4 2.0
+updat  inbfrq -1 -
+atom rdiel switch vswitch -
+ctonnb @par1 ctofnb @par2 cutnb @par3 eps @par4 e14fac 1.0 wmin 1.5
+
+
+
+! set number of modes that will be combined
+set nummod 2
+!Range of displacement values for each mode
+
+
+open read card unit 12 name @minic
+read coor pdb resi unit 12
+close unit 12
+coor copy comp
+
+!open a trajectory file for the normal mode coordinates
+open write card unit 17 - 
+   name @dirnam/@istr.qcr
+
+set q1  0.0
+set q2  0.0
+
+!------------
+!minimization
+!------------
+! Set up MMFP (umbrella) potential
+! mxmd = maximum number of modes (read only once)
+! kmdn = force constant for all the modes
+! qn  =constrained coordinate value for mode imdn
+! umdn = unit number for the modes
+! imdn = mode number
+! uout = unit for storing the normal coordinates
+! krot = force constant for the overall rotation
+! kcgr=force constant for the overall translation
+! nsvq = normal coordinates saving frequency
+
+mmfp
+vmod init mxmd @nummod krot 0.000001 kcgr 1000 umdn 40 uout 17 nsvq 100 
+
+vmod add  qn @q1 imdn 7 kmdn 1000
+vmod add  qn @q2 imdn 8 kmdn 1000
+
+end
+
+
+! minimize fast up to the target
+! Define fast energy model
+updat inbfrq -1 eps 2.0 rdie vswit shift ctonnb 10.0 ctofnb 12.0 cutnb 14.0 -
+wrnmxd 1.0
+
+! sd =  steepest descent algorithm
+! conj =  gradient conjugate algorithm
+
+mini sd nstep 200 tolgrd 0.1
+
+! Define final energy model
+updat inbfrq -1 eps 2.0 rdie vswit shift ctonnb 10.0 ctofnb 12.0 cutnb 14.0 -
+wrnmxd 1.0
+
+mini conj nstep 200 tolgrd 0.01
+
+! increase the force constant to push  exactly to final position
+
+mmfp
+
+vmod change nrestraint  1  qn @q1  kmdn 20000
+vmod change nrestraint  2  qn @q2  kmdn 20000
+
+end
+
+
+mini conj nstep 200 tolgrd 0.01
+
+! I am minimized
+time diff
+
+open write card unit 19 name -
+   @dirnam/@istr-final.out
+
+outu 19
+
+ener
+
+! compute the rmsd from the initial structure
+coor rms
+
+write title unit 19
+* system name
+* NORMAL_MODES=
+* TARGET_NORMAL_COORDINATES= 
+* TOTAL_E= ?ENER RMSD= ?RMS
+*
+
+mmfp
+vmod print
+end
+
+outu 6
+
+! write the final minimized coordinates
+open write card unit 12 name - 
+   @dirnam/@istr.pdb
+write coor pdb unit 12
+* system name
+* minimized coordinates
+* NORMAL_MODES= 
+* TARGET_NORMAL_COORDINATES= 
+* TARGET_NORMAL_COORDINATES= 
+* TARGET_NORMAL_COORDINATES= 
+* TARGET_NORMAL_COORDINATES= 
+* TOTAL_E= ?ENER RMSD= ?RMS
+*
+time diff 
+! close the normal mode file
+close unit 40
+close unit 17
+close unit 19
+
+outu 6
+stop
+
